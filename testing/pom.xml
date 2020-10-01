@@ -248,7 +248,6 @@
             <configuration>
               <systemPropertyVariables>
                 <ccm.version>4.0-beta2</ccm.version>
-                <stargate.test.nodes>1</stargate.test.nodes>
                 <stargate.libdir>${basedir}/../stargate-lib</stargate.libdir>
               </systemPropertyVariables>
               <failIfNoTests>true</failIfNoTests>
