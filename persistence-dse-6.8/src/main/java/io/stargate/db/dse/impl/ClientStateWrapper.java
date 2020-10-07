@@ -8,7 +8,7 @@ import org.apache.cassandra.service.ClientState;
 
 public class ClientStateWrapper implements io.stargate.db.ClientState<ClientState> {
   private org.apache.cassandra.service.ClientState wrapped;
-  private InetSocketAddress publicAddress;
+  private Optional<InetSocketAddress> publicAddress;
   private AuthenticatedUser<?> user;
 
   private ClientStateWrapper(org.apache.cassandra.service.ClientState wrapped) {
@@ -20,7 +20,7 @@ public class ClientStateWrapper implements io.stargate.db.ClientState<ClientStat
   private ClientStateWrapper(
       org.apache.cassandra.service.ClientState wrapped, InetSocketAddress publicAddress) {
     this(wrapped);
-    this.publicAddress = publicAddress;
+    this.publicAddress = Optional.ofNullable(publicAddress);
   }
 
   public static ClientStateWrapper forExternalCalls(SocketAddress remoteAddress) {
@@ -49,12 +49,12 @@ public class ClientStateWrapper implements io.stargate.db.ClientState<ClientStat
   }
 
   @Override
-  public InetSocketAddress getRemoteAddress() {
-    return null;
+  public Optional<InetSocketAddress> getRemoteAddress() {
+    return Optional.ofNullable(wrapped.getRemoteAddress());
   }
 
   @Override
-  public InetSocketAddress getPublicAddress() {
+  public Optional<InetSocketAddress> getPublicAddress() {
     return publicAddress;
   }
 

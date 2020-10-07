@@ -5,14 +5,17 @@ import static io.stargate.db.dse.impl.StargateSystemKeyspace.isSystemLocalOrPeer
 import com.datastax.bdp.db.nodes.virtual.LocalNodeSystemView;
 import com.datastax.bdp.db.nodes.virtual.PeersSystemView;
 import io.reactivex.Single;
+import io.stargate.db.ClientState;
 import io.stargate.db.QueryOptions;
 import io.stargate.db.QueryState;
 import io.stargate.db.Result;
 import io.stargate.db.dse.impl.Conversion;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -73,14 +76,17 @@ public class ProxyProtocolQueryInterceptor implements QueryInterceptor {
           handler.processStatement(
               statement, internalState, internalOptions, customPayload, queryStartNanoTime);
 
-      return resp.map(
+      ClientState<?> clientState = state.getClientState();
+
+      return clientState.getPublicAddress()
+          .map(publicAddress -> resp.map(
           (result) -> {
             if (result.kind == ResultMessage.Kind.ROWS) {
               ResultMessage.Rows rows = (ResultMessage.Rows) result;
               if (!rows.result.isEmpty()) {
                 ResultSet.ResultMetadata metadata = rows.result.metadata;
-                InetAddress publicAddress = state.getClientState().getPublicAddress().getAddress();
-                int publicPort = state.getClientState().getPublicAddress().getPort();
+                InetAddress address = publicAddress.getAddress();
+                int port = publicAddress.getPort();
 
                 int index = 0;
                 // Intercept and replace all address/port entries with the proxy protocol's public
@@ -95,11 +101,11 @@ public class ProxyProtocolQueryInterceptor implements QueryInterceptor {
                       rows.result
                           .rows
                           .get(0)
-                          .set(index, InetAddressType.instance.decompose(publicAddress));
+                          .set(index, InetAddressType.instance.decompose(address));
                       break;
                     case "native_transport_port":
                     case "native_transport_port_ssl":
-                      rows.result.rows.get(0).set(index, Int32Type.instance.decompose(publicPort));
+                      rows.result.rows.get(0).set(index, Int32Type.instance.decompose(port));
                       break;
                     case "host_id":
                       // Return a deterministic entry for `host_id` based on the public address.
@@ -109,7 +115,7 @@ public class ProxyProtocolQueryInterceptor implements QueryInterceptor {
                           .set(
                               index,
                               UUIDType.instance.decompose(
-                                  UUID.nameUUIDFromBytes(publicAddress.getAddress())));
+                                  UUID.nameUUIDFromBytes(address.getAddress())));
                       break;
                     case "tokens":
                       // All entries handle the entire token ring. This prevents some driver from
@@ -131,7 +137,8 @@ public class ProxyProtocolQueryInterceptor implements QueryInterceptor {
               }
             }
             return Conversion.toResult(result, version);
-          });
+          }))
+          .orElseThrow(() -> new RuntimeException("Public address not set unable to generate 'system.local'"));
     }
   }
 

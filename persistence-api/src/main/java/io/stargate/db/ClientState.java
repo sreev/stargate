@@ -17,11 +17,12 @@ package io.stargate.db;
 
 import java.net.InetSocketAddress;
 import java.util.Optional;
+import javax.swing.text.html.Option;
 
 public interface ClientState<T> {
-  InetSocketAddress getRemoteAddress();
+  Optional<InetSocketAddress> getRemoteAddress();
 
-  InetSocketAddress getPublicAddress();
+  Optional<InetSocketAddress> getPublicAddress();
 
   String getRawKeyspace();
 

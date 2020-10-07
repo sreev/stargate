@@ -23,13 +23,13 @@ import java.util.Optional;
 
 public class ClientStateWrapper implements ClientState<org.apache.cassandra.service.ClientState> {
   private org.apache.cassandra.service.ClientState wrapped;
-  private InetSocketAddress publicAddress;
+  private Optional<InetSocketAddress> publicAddress;
   private AuthenticatedUser<?> user;
 
   private ClientStateWrapper(
       org.apache.cassandra.service.ClientState wrapped, InetSocketAddress publicAddress) {
     this(wrapped);
-    this.publicAddress = publicAddress;
+    this.publicAddress = Optional.ofNullable(publicAddress);
   }
 
   private ClientStateWrapper(org.apache.cassandra.service.ClientState wrapped) {
@@ -54,12 +54,12 @@ public class ClientStateWrapper implements ClientState<org.apache.cassandra.serv
   }
 
   @Override
-  public InetSocketAddress getRemoteAddress() {
-    return wrapped.getRemoteAddress();
+  public Optional<InetSocketAddress> getRemoteAddress() {
+    return Optional.ofNullable(wrapped.getRemoteAddress());
   }
 
   @Override
-  public InetSocketAddress getPublicAddress() {
+  public Optional<InetSocketAddress> getPublicAddress() {
     return publicAddress;
   }
 

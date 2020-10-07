@@ -49,7 +49,7 @@ public final class ConnectedClient {
     return connection.stage();
   }
 
-  public InetSocketAddress remoteAddress() {
+  public Optional<InetSocketAddress> remoteAddress() {
     return state().getRemoteAddress();
   }
 
@@ -109,7 +109,7 @@ public final class ConnectedClient {
 
   public Map<String, String> asMap() {
     return ImmutableMap.<String, String>builder()
-        .put(ADDRESS, remoteAddress().toString())
+        .put(ADDRESS, remoteAddress().map(a -> a.toString()).orElse(UNDEFINED))
         .put(USER, username().orElse(UNDEFINED))
         .put(VERSION, String.valueOf(protocolVersion()))
         .put(DRIVER_NAME, driverName().orElse(UNDEFINED))
