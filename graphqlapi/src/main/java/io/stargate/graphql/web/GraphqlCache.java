@@ -128,7 +128,7 @@ public class GraphqlCache implements EventListener {
   }
 
   private void addOrReplaceDmlGraphql(
-      String keyspaceName, String reason, String... reasonArguments) {
+      String keyspaceName, String reason, Object... reasonArguments) {
     if (LOG.isDebugEnabled()) {
       LOG.debug(
           "Refreshing GraphQL schema for keyspace {} because {}",

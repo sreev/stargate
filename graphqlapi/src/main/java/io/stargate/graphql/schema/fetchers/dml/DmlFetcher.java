@@ -12,7 +12,6 @@ import io.stargate.db.schema.Column;
 import io.stargate.db.schema.Table;
 import io.stargate.graphql.schema.NameMapping;
 import io.stargate.graphql.schema.fetchers.CassandraFetcher;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -40,17 +39,16 @@ public abstract class DmlFetcher<ResultT> extends CassandraFetcher<ResultT> {
     if (columnList == null) {
       return ImmutableList.of();
     }
-    List<Condition> clause = new ArrayList<>();
+    ImmutableList.Builder<Condition> conditions = ImmutableList.builder();
     for (Map.Entry<String, Map<String, Object>> clauseEntry : columnList.entrySet()) {
       Column column = getColumn(table, clauseEntry.getKey());
-      CqlIdentifier columnId = CqlIdentifier.fromInternal(column.name());
 
       for (Map.Entry<String, Object> conditionMap : clauseEntry.getValue().entrySet()) {
         FilterOperator operator = FilterOperator.fromFieldName(conditionMap.getKey());
-        clause.add(operator.buildCondition(column, conditionMap.getValue(), nameMapping));
+        conditions.add(operator.buildCondition(column, conditionMap.getValue(), nameMapping));
       }
     }
-    return clause;
+    return conditions.build();
   }
 
   protected List<Relation> buildFilterConditions(
@@ -58,7 +56,7 @@ public abstract class DmlFetcher<ResultT> extends CassandraFetcher<ResultT> {
     if (columnList == null) {
       return ImmutableList.of();
     }
-    List<Relation> relations = new ArrayList<>();
+    ImmutableList.Builder<Relation> relations = ImmutableList.builder();
     for (Map.Entry<String, Map<String, Object>> clauseEntry : columnList.entrySet()) {
       Column column = getColumn(table, clauseEntry.getKey());
       for (Map.Entry<String, Object> condition : clauseEntry.getValue().entrySet()) {
@@ -66,7 +64,7 @@ public abstract class DmlFetcher<ResultT> extends CassandraFetcher<ResultT> {
         relations.add(operator.buildRelation(column, condition.getValue(), nameMapping));
       }
     }
-    return relations;
+    return relations.build();
   }
 
   protected List<Relation> buildClause(Table table, DataFetchingEnvironment environment) {
@@ -75,16 +73,17 @@ public abstract class DmlFetcher<ResultT> extends CassandraFetcher<ResultT> {
       return buildFilterConditions(table, columnList);
     } else {
       Map<String, Object> value = environment.getArgument("value");
-      List<Relation> relations = new ArrayList<>();
-      if (value == null) return ImmutableList.of();
-
+      if (value == null) {
+        return ImmutableList.of();
+      }
+      ImmutableList.Builder<Relation> relations = ImmutableList.builder();
       for (Map.Entry<String, Object> entry : value.entrySet()) {
         Column column = getColumn(table, entry.getKey());
         relations.add(
             Relation.column(CqlIdentifier.fromInternal(column.name()))
                 .isEqualTo(toCqlTerm(column, entry.getValue())));
       }
-      return relations;
+      return relations.build();
     }
   }
 

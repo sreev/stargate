@@ -513,18 +513,19 @@ class DdlSchemaBuilder {
             .build());
   }
 
-  private <T> T register(GraphQLType object) {
+  private <T extends GraphQLType> T register(T object) {
     String name = getName(object);
     if (name == null) {
       throw new RuntimeException("Schema object has no name" + object);
     }
 
-    Object o = objects.get(name);
-    if (o == null) {
-      objects.put(name, object);
-      return (T) object;
+    @SuppressWarnings("unchecked")
+    T existing = (T) objects.get(name);
+    if (existing != null) {
+      return existing;
     }
-    return (T) o;
+    objects.put(name, object);
+    return object;
   }
 
   private String getName(GraphQLType object) {

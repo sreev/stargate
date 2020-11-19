@@ -32,6 +32,7 @@ public class AlterTableAddFetcher extends DdlQueryFetcher {
     super(persistence, authenticationService);
   }
 
+  @Override
   public String getQuery(DataFetchingEnvironment dataFetchingEnvironment) {
     AlterTableStart start =
         SchemaBuilder.alterTable(

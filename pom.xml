@@ -342,6 +342,8 @@
             <target>1.8</target>
             <compilerArgs combine.children="override">
               <compilerArg>-XepAllErrorsAsWarnings</compilerArg>
+              <!-- This would require adding ErrorProne annotations in our code: -->
+              <compilerArg>-Xep:AnnotateFormatMethod:OFF</compilerArg>
               <compilerArg>-XepExcludedPaths:.*/target/(?:generated-sources|generated-test-sources)/.*</compilerArg>
             </compilerArgs>
             <showWarnings>true</showWarnings>

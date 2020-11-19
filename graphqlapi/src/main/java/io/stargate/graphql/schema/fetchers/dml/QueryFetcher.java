@@ -29,11 +29,9 @@ import io.stargate.db.datastore.DataStore;
 import io.stargate.db.datastore.ResultSet;
 import io.stargate.db.schema.Table;
 import io.stargate.graphql.schema.NameMapping;
+import io.stargate.graphql.util.ByteBufferUtils;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Base64;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -65,7 +63,7 @@ public class QueryFetcher extends DmlFetcher<Map<String, Object>> {
 
     ByteBuffer pageState = resultSet.getPagingState();
     if (pageState != null) {
-      result.put("pageState", Base64.getEncoder().encodeToString(pageState.array()));
+      result.put("pageState", ByteBufferUtils.asBase64(pageState));
     }
 
     return result;
@@ -91,7 +89,7 @@ public class QueryFetcher extends DmlFetcher<Map<String, Object>> {
 
   private Map<CqlIdentifier, ClusteringOrder> buildOrderBy(DataFetchingEnvironment environment) {
     if (environment.containsArgument("orderBy")) {
-      Map<CqlIdentifier, ClusteringOrder> orderMap = new LinkedHashMap<>();
+      ImmutableMap.Builder<CqlIdentifier, ClusteringOrder> orderMap = ImmutableMap.builder();
       List<String> orderList = environment.getArgument("orderBy");
       for (String order : orderList) {
         int split = order.lastIndexOf("_");
@@ -100,7 +98,7 @@ public class QueryFetcher extends DmlFetcher<Map<String, Object>> {
         orderMap.put(
             getDBColumnName(table, column), desc ? ClusteringOrder.DESC : ClusteringOrder.ASC);
       }
-      return orderMap;
+      return orderMap.build();
     }
 
     return ImmutableMap.of();
@@ -109,7 +107,7 @@ public class QueryFetcher extends DmlFetcher<Map<String, Object>> {
   private List<CqlIdentifier> buildQueryColumns(DataFetchingEnvironment environment) {
     if (environment.getSelectionSet().contains("values")) {
       SelectedField field = environment.getSelectionSet().getField("values");
-      List<CqlIdentifier> fields = new ArrayList<>();
+      ImmutableList.Builder<CqlIdentifier> fields = ImmutableList.builder();
       for (SelectedField selectedField : field.getSelectionSet().getFields()) {
         if ("__typename".equals(selectedField.getName())) {
           continue;
@@ -120,7 +118,7 @@ public class QueryFetcher extends DmlFetcher<Map<String, Object>> {
           fields.add(column);
         }
       }
-      return fields;
+      return fields.build();
     }
 
     return ImmutableList.of();

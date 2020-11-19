@@ -33,6 +33,7 @@ public class CreateTableFetcher extends DdlQueryFetcher {
     super(persistence, authenticationService);
   }
 
+  @Override
   public String getQuery(DataFetchingEnvironment dataFetchingEnvironment) {
     CreateTableStart start =
         SchemaBuilder.createTable(
