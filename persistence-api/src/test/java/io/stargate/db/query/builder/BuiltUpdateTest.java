@@ -11,6 +11,8 @@ import io.stargate.db.query.Predicate;
 import io.stargate.db.query.QueryType;
 import io.stargate.db.query.TypedValue;
 import io.stargate.db.schema.Column.Type;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 public class BuiltUpdateTest extends BuiltDMLTest<BoundUpdate> {
@@ -25,6 +27,8 @@ public class BuiltUpdateTest extends BuiltDMLTest<BoundUpdate> {
     BuiltQuery<?> query =
         builder
             .update(KS_NAME, "t1")
+            .ttl(42)
+            .timestamp(1L)
             .value("v1", "foo_value")
             .value("v2", 1)
             .where("k1", Predicate.EQ, "foo")
@@ -33,12 +37,12 @@ public class BuiltUpdateTest extends BuiltDMLTest<BoundUpdate> {
 
     assertBuiltQuery(
         query,
-        "UPDATE ks.t1 SET v1 = 'foo_value', v2 = 1 WHERE k1 = 'foo' AND k2 = 42",
+        "UPDATE ks.t1 USING TTL 42 AND TIMESTAMP 1 SET v1 = 'foo_value', v2 = 1 WHERE k1 = 'foo' AND k2 = 42",
         emptyList());
 
     setBound(query.bind());
 
-    assertTestUpdateBoundQuery("foo", 42L, "foo_value", 1);
+    assertTestUpdateBoundQuery(42, 1L, "foo", 42L, "foo_value", 1);
   }
 
   @Test
@@ -64,6 +68,8 @@ public class BuiltUpdateTest extends BuiltDMLTest<BoundUpdate> {
 
     assertTestUpdateBoundQuery(
         "UPDATE ks.t1 SET v1 = ?, v2 = ? WHERE k1 = ? AND k2 = ? IF EXISTS",
+        null,
+        null,
         "foo",
         42L,
         "foo_value",
@@ -73,8 +79,8 @@ public class BuiltUpdateTest extends BuiltDMLTest<BoundUpdate> {
   @Test
   public void testUpdateWithMarkers() {
     BuiltQuery<?> query = startTestUpdateWithMarkers();
-    setBound(query.bind("foo_value", 1, "foo"));
-    assertTestUpdateBoundQuery("foo", 42L, "foo_value", 1);
+    setBound(query.bind(42, 1L, "foo_value", 1, "foo"));
+    assertTestUpdateBoundQuery(42, 1L, "foo", 42L, "foo_value", 1);
   }
 
   private BuiltQuery<?> startTestUpdateWithMarkers() {
@@ -83,6 +89,8 @@ public class BuiltUpdateTest extends BuiltDMLTest<BoundUpdate> {
     BuiltQuery<?> query =
         builder
             .update(KS_NAME, "t1")
+            .ttl()
+            .timestamp()
             .value("v1")
             .value("v2")
             .where("k1", Predicate.EQ)
@@ -91,8 +99,13 @@ public class BuiltUpdateTest extends BuiltDMLTest<BoundUpdate> {
 
     assertBuiltQuery(
         query,
-        "UPDATE ks.t1 SET v1 = ?, v2 = ? WHERE k1 = ? AND k2 = 42",
-        asList(markerFor("v1", Type.Text), markerFor("v2", Type.Int), markerFor("k1", Type.Text)));
+        "UPDATE ks.t1 USING TTL ? AND TIMESTAMP ? SET v1 = ?, v2 = ? WHERE k1 = ? AND k2 = 42",
+        asList(
+            markerFor("[ttl]", Type.Int),
+            markerFor("[timestamp]", Type.Bigint),
+            markerFor("v1", Type.Text),
+            markerFor("v2", Type.Int),
+            markerFor("k1", Type.Text)));
 
     return query;
   }
@@ -100,46 +113,71 @@ public class BuiltUpdateTest extends BuiltDMLTest<BoundUpdate> {
   @Test
   public void testInsertWithNull() {
     BuiltQuery<?> query = startTestUpdateWithMarkers();
-    setBound(query.bind(null, 1, "foo"));
-    assertTestUpdateBoundQuery("foo", 42L, null, 1);
+    setBound(query.bind(42, 1L, null, 1, "foo"));
+    assertTestUpdateBoundQuery(42, 1L, "foo", 42L, null, 1);
   }
 
   @Test
   public void testInsertWithUnset() {
     BuiltQuery<?> query = startTestUpdateWithMarkers();
 
-    setBound(query.bind(TypedValue.UNSET, 1, "foo"));
+    setBound(query.bind(TypedValue.UNSET, 2L, TypedValue.UNSET, 1, "foo"));
 
     assertBoundQuery(
         bound,
-        "UPDATE ks.t1 SET v1 = ?, v2 = ? WHERE k1 = ? AND k2 = ?",
+        "UPDATE ks.t1 USING TTL ? AND TIMESTAMP ? SET v1 = ?, v2 = ? WHERE k1 = ? AND k2 = ?",
         // Note: because k2 is a bigint, we will get its value as a long, even though we input it as
         // a int. This is very much expected.
-        asList(TypedValue.UNSET, 1, "foo", 42L));
+        asList(TypedValue.UNSET, 2L, TypedValue.UNSET, 1, "foo", 42L));
 
     assertThat(bound.table().name()).isEqualTo("t1");
     assertThat(keysToJava(bound.primaryKeys())).isEqualTo(asList(asList("foo", 42L)));
     assertThat(bound.modifications()).isEqualTo(asList(set("v2", 1)));
     assertThat(bound.ttl()).isEmpty();
-    assertThat(bound.timestamp()).isEmpty();
+    assertThat(bound.timestamp()).hasValue(2L);
   }
 
   // Once we've bound values to the BuiltQuery, both the test with and without markers should yield
   // the same thing (for the same values), so this just avoid code duplication.
-  private void assertTestUpdateBoundQuery(String k1, long k2, String v1, int v2) {
+  private void assertTestUpdateBoundQuery(
+      int ttl, long timestamp, String k1, long k2, String v1, int v2) {
     assertTestUpdateBoundQuery(
-        "UPDATE ks.t1 SET v1 = ?, v2 = ? WHERE k1 = ? AND k2 = ?", k1, k2, v1, v2);
+        "UPDATE ks.t1 USING TTL ? AND TIMESTAMP ? SET v1 = ?, v2 = ? WHERE k1 = ? AND k2 = ?",
+        ttl,
+        timestamp,
+        k1,
+        k2,
+        v1,
+        v2);
   }
 
   private void assertTestUpdateBoundQuery(
-      String expectedBoundQuery, String k1, long k2, String v1, int v2) {
-    assertBoundQuery(bound, expectedBoundQuery, asList(v1, v2, k1, k2));
+      String expectedBoundQuery,
+      Integer ttl,
+      Long timestamp,
+      String k1,
+      long k2,
+      String v1,
+      int v2) {
+    List<Object> expectedBoundValues = new ArrayList<>();
+    if (ttl != null) expectedBoundValues.add(ttl);
+    if (timestamp != null) expectedBoundValues.add(timestamp);
+    expectedBoundValues.addAll(asList(v1, v2, k1, k2));
+    assertBoundQuery(bound, expectedBoundQuery, expectedBoundValues);
 
     assertThat(bound.table().name()).isEqualTo("t1");
     assertThat(keysToJava(bound.primaryKeys())).isEqualTo(asList(asList(k1, k2)));
     assertThat(bound.modifications()).isEqualTo(asList(set("v1", v1), set("v2", v2)));
-    assertThat(bound.ttl()).isEmpty();
-    assertThat(bound.timestamp()).isEmpty();
+    if (ttl == null) {
+      assertThat(bound.ttl()).isEmpty();
+    } else {
+      assertThat(bound.ttl()).hasValue(ttl);
+    }
+    if (timestamp == null) {
+      assertThat(bound.timestamp()).isEmpty();
+    } else {
+      assertThat(bound.timestamp()).hasValue(timestamp);
+    }
   }
 
   @Test

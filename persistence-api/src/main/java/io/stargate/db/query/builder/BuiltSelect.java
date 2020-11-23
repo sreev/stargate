@@ -9,10 +9,12 @@ import io.stargate.db.query.QueryType;
 import io.stargate.db.query.TypedValue;
 import io.stargate.db.query.TypedValue.Codec;
 import io.stargate.db.schema.Column;
+import io.stargate.db.schema.Column.Type;
 import io.stargate.db.schema.Table;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -23,8 +25,9 @@ public class BuiltSelect extends BuiltQuery<BuiltSelect.Bound> {
   private final String externalQueryString;
   private final String internalQueryString;
   private final Set<Column> selectedColumns;
-  private final List<Value<?>> internalValues;
+  private final List<Value<?>> internalWhereValues;
   private final List<BindMarker> internalBindMarkers;
+  private final @Nullable Value<Long> limit;
 
   protected BuiltSelect(
       Table table,
@@ -32,8 +35,9 @@ public class BuiltSelect extends BuiltQuery<BuiltSelect.Bound> {
       AsyncQueryExecutor executor,
       QueryStringBuilder builder,
       Set<Column> selectedColumns,
-      List<Value<?>> internalValues,
-      List<BindMarker> internalBindMarkers) {
+      List<Value<?>> internalWhereValues,
+      List<BindMarker> internalBindMarkers,
+      @Nullable Value<Long> limit) {
     this(
         table,
         codec,
@@ -43,12 +47,14 @@ public class BuiltSelect extends BuiltQuery<BuiltSelect.Bound> {
         builder.externalBindMarkers(),
         builder.internalQueryString(),
         selectedColumns,
-        internalValues,
-        internalBindMarkers);
+        internalWhereValues,
+        internalBindMarkers,
+        limit);
+    int internalBoundValuesCount = internalWhereValues.size() + (limit == null ? 0 : 1);
     Preconditions.checkArgument(
-        builder.internalBindMarkers() == internalValues.size(),
+        builder.internalBindMarkers() == internalBoundValuesCount,
         "Provided %s values, but the builder has seen %s values",
-        internalValues.size(),
+        internalWhereValues.size(),
         builder.internalBindMarkers());
   }
 
@@ -61,15 +67,17 @@ public class BuiltSelect extends BuiltQuery<BuiltSelect.Bound> {
       List<BindMarker> unboundMarkers,
       String internalQueryString,
       Set<Column> selectedColumns,
-      List<Value<?>> internalValues,
-      List<BindMarker> internalBindMarkers) {
+      List<Value<?>> internalWhereValues,
+      List<BindMarker> internalBindMarkers,
+      @Nullable Value<Long> limit) {
     super(QueryType.SELECT, codec, preparedId, executor, unboundMarkers);
     this.table = table;
     this.internalQueryString = internalQueryString;
     this.externalQueryString = externalQueryString;
     this.selectedColumns = selectedColumns;
-    this.internalValues = internalValues;
+    this.internalWhereValues = internalWhereValues;
     this.internalBindMarkers = internalBindMarkers;
+    this.limit = limit;
   }
 
   public Table table() {
@@ -86,10 +94,10 @@ public class BuiltSelect extends BuiltQuery<BuiltSelect.Bound> {
   }
 
   @Override
-  protected BuiltSelect.Bound createBoundQuery(List<TypedValue> values) {
-    TypedValue[] internalBoundValues = new TypedValue[internalValues.size()];
-    for (int i = 0; i < internalValues.size(); i++) {
-      Value<?> internalValue = internalValues.get(i);
+  protected Bound createBoundQuery(List<TypedValue> values) {
+    TypedValue[] internalBoundValues = new TypedValue[internalBindMarkers.size()];
+    for (int i = 0; i < internalWhereValues.size(); i++) {
+      Value<?> internalValue = internalWhereValues.get(i);
       BindMarker internalMarker = internalBindMarkers.get(i);
       TypedValue v =
           convertValue(internalValue, internalMarker.receiver(), internalMarker.type(), values);
@@ -97,7 +105,23 @@ public class BuiltSelect extends BuiltQuery<BuiltSelect.Bound> {
       Preconditions.checkState(internalIndex >= 0);
       internalBoundValues[internalIndex] = v;
     }
-    return new Bound(this, values, Arrays.asList(internalBoundValues));
+
+    OptionalLong optLimit = OptionalLong.empty();
+    if (limit != null) {
+      TypedValue v = convertValue(limit, "[limit]", Type.Bigint, values);
+      int internalIndex = limit.internalIndex();
+      if (internalIndex >= 0) {
+        internalBoundValues[internalIndex] = v;
+      }
+      if (!v.isUnset()) {
+        Long lvalue = (Long) v.javaValue();
+        if (lvalue == null) {
+          throw new IllegalArgumentException("Cannot pass null as bound value for the LIMIT");
+        }
+        optLimit = OptionalLong.of(lvalue);
+      }
+    }
+    return new Bound(this, values, Arrays.asList(internalBoundValues), optLimit);
   }
 
   @Override
@@ -111,8 +135,9 @@ public class BuiltSelect extends BuiltQuery<BuiltSelect.Bound> {
         bindMarkers(),
         internalQueryString,
         selectedColumns,
-        internalValues,
-        internalBindMarkers);
+        internalWhereValues,
+        internalBindMarkers,
+        limit);
   }
 
   @Override
@@ -121,18 +146,25 @@ public class BuiltSelect extends BuiltQuery<BuiltSelect.Bound> {
   }
 
   public static class Bound extends AbstractBound<BuiltSelect> implements BoundSelect {
-    private Bound(BuiltSelect builtQuery, List<TypedValue> boundedValues, List<TypedValue> values) {
+    private final OptionalLong limit;
+
+    private Bound(
+        BuiltSelect builtQuery,
+        List<TypedValue> boundedValues,
+        List<TypedValue> values,
+        OptionalLong limit) {
       super(builtQuery, boundedValues, values);
+      this.limit = limit;
     }
 
     @Override
     public Table table() {
-      return bounded().query().table();
+      return source().query().table();
     }
 
     @Override
     public Set<Column> selectedColumns() {
-      return bounded().query().selectedColumns();
+      return source().query().selectedColumns();
     }
 
     private String addColumnsToQueryString(
@@ -168,7 +200,7 @@ public class BuiltSelect extends BuiltQuery<BuiltSelect.Bound> {
       Set<Column> newSelectedColumns = new HashSet<>(selectedColumns());
       newSelectedColumns.addAll(toAdd);
 
-      BuiltSelect oldBuilt = bounded().query();
+      BuiltSelect oldBuilt = source().query();
       BuiltSelect newBuilt =
           new BuiltSelect(
               table(),
@@ -179,9 +211,15 @@ public class BuiltSelect extends BuiltQuery<BuiltSelect.Bound> {
               oldBuilt.bindMarkers(),
               addColumnsToQueryString(toAdd, oldBuilt.internalQueryString, isStarSelect()),
               newSelectedColumns,
-              oldBuilt.internalValues,
-              oldBuilt.internalBindMarkers);
-      return new Bound(newBuilt, bounded().values(), values());
+              oldBuilt.internalWhereValues,
+              oldBuilt.internalBindMarkers,
+              limit.isPresent() ? Value.of(limit.getAsLong()) : null);
+      return new BuiltSelect.Bound(newBuilt, source().values(), values(), limit);
+    }
+
+    @Override
+    public OptionalLong limit() {
+      return limit;
     }
   }
 }

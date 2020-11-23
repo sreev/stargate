@@ -32,7 +32,7 @@ class AbstractBoundDML extends AbstractBound<BuiltDML<?>> implements BoundDMLQue
 
   @Override
   public Table table() {
-    return bounded().query().table();
+    return source().query().table();
   }
 
   @Override

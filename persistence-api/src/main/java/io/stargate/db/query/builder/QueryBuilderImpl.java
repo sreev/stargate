@@ -36,6 +36,7 @@ import io.stargate.db.schema.AbstractTable;
 import io.stargate.db.schema.CollectionIndexingType;
 import io.stargate.db.schema.Column;
 import io.stargate.db.schema.Column.ColumnType;
+import io.stargate.db.schema.Column.Type;
 import io.stargate.db.schema.ColumnUtils;
 import io.stargate.db.schema.ImmutableColumn;
 import io.stargate.db.schema.Keyspace;
@@ -153,7 +154,7 @@ public class QueryBuilderImpl {
   /** The IFs conditions for a conditional UPDATE or DELETE. */
   private final List<BuiltCondition> ifs = new ArrayList<>();
 
-  private @Nullable Long limit;
+  private @Nullable Value<Long> limit;
   private List<ColumnOrder> orders = new ArrayList<>();
 
   private Replication replication;
@@ -179,6 +180,7 @@ public class QueryBuilderImpl {
   private Value<Integer> ttl;
   private Value<Long> timestamp;
   private String writeTimeColumn;
+  private String writeTimeColumnAlias;
   private boolean allowFiltering;
 
   public QueryBuilderImpl(Schema schema, Codec valueCodec, @Nullable AsyncQueryExecutor executor) {
@@ -472,7 +474,12 @@ public class QueryBuilderImpl {
   }
 
   public void writeTimeColumn(String columnName) {
+    writeTimeColumn(columnName, null);
+  }
+
+  public void writeTimeColumn(String columnName, String alias) {
     this.writeTimeColumn = columnName;
+    this.writeTimeColumnAlias = alias;
   }
 
   public void star() {
@@ -774,8 +781,17 @@ public class QueryBuilderImpl {
     this.isType = true;
   }
 
+  @DSLAction
+  public void limit() {
+    this.limit = Value.marker();
+    preprocessValue(this.limit);
+  }
+
+  @DSLAction
   public void limit(Long limit) {
-    this.limit = limit;
+    if (limit != null) {
+      this.limit = Value.of(limit);
+    }
   }
 
   public void orderBy(Column column, Column.Order order) {
@@ -813,6 +829,7 @@ public class QueryBuilderImpl {
   @DSLAction
   public void ttl() {
     this.ttl = Value.marker();
+    preprocessValue(this.ttl);
   }
 
   @DSLAction
@@ -825,6 +842,7 @@ public class QueryBuilderImpl {
   @DSLAction
   public void timestamp() {
     this.timestamp = Value.marker();
+    preprocessValue(this.timestamp);
   }
 
   @DSLAction
@@ -1605,11 +1623,18 @@ public class QueryBuilderImpl {
       builder
           .start()
           .addAll(selectedColumns)
-          .addIfNotNull(wtColumn, c -> builder.append("WRITETIME(").append(c).append(")"))
+          .addIfNotNull(
+              wtColumn,
+              c -> {
+                builder.append("WRITETIME(").append(c).append(")");
+                if (writeTimeColumnAlias != null) {
+                  builder.append("AS").append(cqlName(writeTimeColumnAlias));
+                }
+              })
           .end();
     }
     builder.append("FROM").append(table);
-    List<Value<?>> internalValues = new ArrayList<>();
+    List<Value<?>> internalWhereValues = new ArrayList<>();
     List<BindMarker> internalBindMarkers = new ArrayList<>();
     builder
         .lazyStart("WHERE", "AND")
@@ -1617,8 +1642,8 @@ public class QueryBuilderImpl {
             wheres,
             where -> {
               where.addToBuilder(table, builder, internalBindMarkers::add);
-              where.lhs().value().ifPresent(internalValues::add);
-              internalValues.add(where.value());
+              where.lhs().value().ifPresent(internalWhereValues::add);
+              internalWhereValues.add(where.value());
             })
         .end();
 
@@ -1629,7 +1654,9 @@ public class QueryBuilderImpl {
             order -> builder.append(order.column()).append(order.order().name().toUpperCase()));
 
     if (limit != null) {
-      builder.append("LIMIT").append(limit.toString());
+      BindMarker marker = markerFor("[limit]", Type.Bigint);
+      builder.append("LIMIT").append(marker, limit);
+      internalBindMarkers.add(marker);
     }
     if (allowFiltering) {
       builder.append("ALLOW FILTERING");
@@ -1641,7 +1668,8 @@ public class QueryBuilderImpl {
         executor,
         builder,
         new HashSet<>(selectedColumns),
-        internalValues,
-        internalBindMarkers);
+        internalWhereValues,
+        internalBindMarkers,
+        limit);
   }
 }

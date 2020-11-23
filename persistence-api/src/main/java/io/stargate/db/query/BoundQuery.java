@@ -7,15 +7,15 @@ public interface BoundQuery {
   /** The type of query this is. */
   QueryType type();
 
-  /** The query and values used to obtain this bounded query. */
-  Bounded<?> bounded();
+  /** The query and values used to obtain this bound query. */
+  BoundQuery.Source<?> source();
 
   /**
    * A CQL query string representation of this query, with bind markers for the values of {@link
    * #values()}.
    */
   default String queryString() {
-    return bounded().query().queryStringForPreparation();
+    return source().query().queryStringForPreparation();
   }
 
   /**
@@ -28,21 +28,21 @@ public interface BoundQuery {
    */
   List<TypedValue> values();
 
-  class Bounded<Q extends Query<?>> {
-    private final Q boundedQuery;
-    private final List<TypedValue> boundedValues;
+  class Source<Q extends Query<?>> {
+    private final Q sourceQuery;
+    private final List<TypedValue> sourceValues;
 
-    public Bounded(Q boundedQuery, List<TypedValue> boundedValues) {
-      this.boundedQuery = boundedQuery;
-      this.boundedValues = boundedValues;
+    public Source(Q boundedQuery, List<TypedValue> sourceValues) {
+      this.sourceQuery = boundedQuery;
+      this.sourceValues = sourceValues;
     }
 
     public Q query() {
-      return boundedQuery;
+      return sourceQuery;
     }
 
     public List<TypedValue> values() {
-      return boundedValues;
+      return sourceValues;
     }
 
     @Override
@@ -53,19 +53,18 @@ public interface BoundQuery {
       if (o == null || getClass() != o.getClass()) {
         return false;
       }
-      Bounded<?> bounded = (Bounded<?>) o;
-      return boundedQuery.equals(bounded.boundedQuery)
-          && boundedValues.equals(bounded.boundedValues);
+      Source<?> source = (Source<?>) o;
+      return sourceQuery.equals(source.sourceQuery) && sourceValues.equals(source.sourceValues);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(boundedQuery, boundedValues);
+      return Objects.hash(sourceQuery, sourceValues);
     }
 
     @Override
     public String toString() {
-      return String.format("%s with values=%s", boundedQuery, boundedValues);
+      return String.format("%s with values=%s", sourceQuery, sourceValues);
     }
   }
 }

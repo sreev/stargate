@@ -2,10 +2,12 @@ package io.stargate.db.query.builder;
 
 import io.stargate.db.query.Modification.Operation;
 import javax.annotation.Nullable;
+import org.immutables.value.Value.Immutable;
+import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
-@org.immutables.value.Value.Immutable
-@org.immutables.value.Value.Style(visibility = ImplementationVisibility.PACKAGE)
+@Immutable
+@Style(visibility = ImplementationVisibility.PACKAGE)
 public abstract class ValueModifier {
 
   abstract Target target();
@@ -30,8 +32,8 @@ public abstract class ValueModifier {
         .build();
   }
 
-  @org.immutables.value.Value.Immutable
-  @org.immutables.value.Value.Style(visibility = ImplementationVisibility.PACKAGE)
+  @Immutable
+  @Style(visibility = ImplementationVisibility.PACKAGE)
   abstract static class Target {
     abstract String columnName();
 

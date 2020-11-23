@@ -145,7 +145,7 @@ public abstract class GraphQlTestBase {
     // bound#values). However, those tests were written with expectedCqlQuery being the query with
     // all the value "inlined". To avoid changing all the tests, we "cheat" a bit by reaching into
     // the underlying BuiltQuery.
-    return ((AbstractBound<?>) boundQuery).bounded().query().toString();
+    return ((AbstractBound<?>) boundQuery).source().query().toString();
   }
 
   public String getCapturedQueryString() {

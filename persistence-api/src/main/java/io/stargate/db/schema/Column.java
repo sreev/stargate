@@ -489,7 +489,7 @@ public abstract class Column implements SchemaEntity, Comparable<Column> {
     }
 
     /**
-     * Return then type corresponding to the provided CQL type string.
+     * Return the type corresponding to the provided CQL type string.
      *
      * @param keyspace the keyspace within which the provided type should be parsed. This is
      *     necessary to result UDT types.

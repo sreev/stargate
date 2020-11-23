@@ -8,11 +8,9 @@ import java.util.Objects;
  * Specify which rows are updated by a given DML query.
  *
  * <p>There is effectively two implementation of this class, corresponding to the 2 ways rows can be
- * updated in CQL: either a set of specific rows are impacted ()
- *
- * <ul>
- *   <li>
- * </ul>
+ * updated in CQL: either a set of specific rows (implemented by {@link Keys}), or a range of rows
+ * (implemented by {@link Ranges}). Note that in practice, ranges are allowed by DELETE in CQL so
+ * far, and INSERT can only insert a single row at a time.
  */
 public abstract class RowsUpdated {
   private RowsUpdated() {}

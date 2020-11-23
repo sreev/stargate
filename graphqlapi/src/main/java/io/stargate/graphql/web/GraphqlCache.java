@@ -85,22 +85,18 @@ public class GraphqlCache implements EventListener {
               .queryBuilder()
               .select()
               .column("keyspace_name")
-              .writeTimeColumn("durable_writes")
+              .writeTimeColumn("durable_writes", "wt")
               .from("system_schema", "keyspaces")
               .build()
               .execute(ConsistencyLevel.LOCAL_QUORUM);
 
       ResultSet resultSet = query.get();
 
-      // TODO: we should add support for aliases in the query builder so we don't have to remember
-      // this.
-      String writetimeColumn = "writetime(durable_writes)";
-
       // Grab the oldest, non-system keyspace to use as default.
       Optional<Row> first =
           resultSet.rows().stream()
-              .filter(r -> !r.isNull(writetimeColumn))
-              .filter(r -> r.getLong(writetimeColumn) > 0)
+              .filter(r -> !r.isNull("wt"))
+              .filter(r -> r.getLong("wt") > 0)
               .filter(
                   r -> {
                     String keyspaceName = r.getString("keyspace_name");
@@ -110,7 +106,7 @@ public class GraphqlCache implements EventListener {
                         && !keyspaceName.startsWith("system_")
                         && !keyspaceName.startsWith("dse_");
                   })
-              .min(Comparator.comparing(r -> r.getLong(writetimeColumn)));
+              .min(Comparator.comparing(r -> r.getLong("wt")));
 
       String defaultKeyspace = first.map(row -> row.getString("keyspace_name")).orElse(null);
       LOG.debug("Using default keyspace {}", defaultKeyspace);

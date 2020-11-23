@@ -54,6 +54,7 @@ import static org.assertj.core.api.Fail.fail;
 import com.datastax.oss.driver.api.core.ProtocolVersion;
 import com.datastax.oss.driver.api.core.data.CqlDuration;
 import com.datastax.oss.driver.api.core.data.TupleValue;
+import com.datastax.oss.driver.api.core.data.UdtValue;
 import com.datastax.oss.driver.shaded.guava.common.collect.ImmutableList;
 import com.datastax.oss.driver.shaded.guava.common.collect.ImmutableMap;
 import com.datastax.oss.driver.shaded.guava.common.collect.ImmutableSet;
@@ -662,7 +663,6 @@ public abstract class PersistenceTest {
     }
   }
 
-  @Disabled("Disabling UDT related tests for now")
   @Test
   public void testUDTWithAllSimpleTypes()
       throws UnknownHostException, ExecutionException, InterruptedException {
@@ -720,14 +720,15 @@ public abstract class PersistenceTest {
             .join()
             .rows();
     assertThat(rows).isNotEmpty();
-    // TODO: [doug] 2020-07-10, Fri, 16:43 we currently have a mismatch where some things are using
-    // UdtValue and others want UDTValue
-    //        Row row = rows.get(0);
-    //        UDTValue udtValue = row.getUDT("udt");
-    //        assertThat(udtValue).isNotNull();
-    //        columns.forEach(c -> assertThat(udtValue.get(c.name().toLowerCase(),
-    // Objects.requireNonNull(c.type()).codec()))
-    //                .isEqualTo(typeToValue.get(c.type())));
+
+    Row row = rows.get(0);
+    UdtValue udtValue = row.getUdtValue("udt");
+    assertThat(udtValue).isNotNull();
+    columns.forEach(
+        c ->
+            assertThat(
+                    udtValue.get(c.name().toLowerCase(), Objects.requireNonNull(c.type()).codec()))
+                .isEqualTo(typeToValue.get(c.type())));
   }
 
   private ImmutableMap<Column.ColumnType, Object> getSimpleTypesWithValues()

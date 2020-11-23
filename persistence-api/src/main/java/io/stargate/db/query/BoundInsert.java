@@ -4,8 +4,8 @@ import java.util.List;
 
 public interface BoundInsert extends BoundDMLQuery {
   /**
-   * Like updates, inserted cannot impact range of rows, but contrarily to updates, inserts inserts
-   * can only impact a single row. This method is just a shortcut to returns that primary key.
+   * Like updates, inserts cannot impact a range of rows, but contrarily to updates, inserts can
+   * only impact a single row. This method is just a shortcut to returns that primary key.
    */
   default PrimaryKey primaryKey() {
     assert !rowsUpdated().isRanges();

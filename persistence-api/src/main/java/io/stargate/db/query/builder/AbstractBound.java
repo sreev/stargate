@@ -18,22 +18,22 @@ import org.apache.cassandra.stargate.db.ConsistencyLevel;
 // be made package private by changing those tests, but it's probably not a big deal.
 @VisibleForTesting
 public class AbstractBound<Q extends BuiltQuery<?>> implements BoundQuery {
-  private final Bounded<Q> bounded;
+  private final Source<Q> source;
   private final List<TypedValue> values;
 
   AbstractBound(Q builtQuery, List<TypedValue> boundedValues, List<TypedValue> values) {
-    this.bounded = new Bounded<>(builtQuery, boundedValues);
+    this.source = new Source<>(builtQuery, boundedValues);
     this.values = values;
   }
 
   @Override
   public QueryType type() {
-    return bounded.query().type();
+    return source.query().type();
   }
 
   @Override
-  public Bounded<Q> bounded() {
-    return bounded;
+  public Source<Q> source() {
+    return source;
   }
 
   @Override
@@ -43,8 +43,8 @@ public class AbstractBound<Q extends BuiltQuery<?>> implements BoundQuery {
 
   private AsyncQueryExecutor executor() {
     Preconditions.checkState(
-        bounded.query().executor() != null, "Cannot execute query: it has no attached executor");
-    return bounded.query().executor();
+        source.query().executor() != null, "Cannot execute query: it has no attached executor");
+    return source.query().executor();
   }
 
   /**

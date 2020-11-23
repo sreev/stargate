@@ -52,7 +52,7 @@ class PersistenceBackedDataStore implements DataStore {
     for (TypedValue value : values) {
       buffers.add(value.bytes());
     }
-    Query<?> boundedQuery = query.bounded().query();
+    Query<?> boundedQuery = query.source().query();
     return boundedQuery.preparedId().isPresent()
         ? new BoundStatement(boundedQuery.preparedId().get(), buffers, null)
         : new SimpleStatement(boundedQuery.queryStringForPreparation(), buffers);
@@ -90,10 +90,10 @@ class PersistenceBackedDataStore implements DataStore {
     validateExecuteParameters(executeParameters);
 
     CompletableFuture<ResultSet> future = new CompletableFuture<>();
-    if (query.bounded().query().preparedId().isPresent()) {
+    if (query.source().query().preparedId().isPresent()) {
       executeWithRetry(query, executeParameters, queryStartNanos, future);
     } else if (options.alwaysPrepareQueries()) {
-      prepareAndRetry(query.bounded(), executeParameters, queryStartNanos, future);
+      prepareAndRetry(query.source(), executeParameters, queryStartNanos, future);
     } else {
       doExecute(query, executeParameters, queryStartNanos, future, future::completeExceptionally);
     }
@@ -118,7 +118,7 @@ class PersistenceBackedDataStore implements DataStore {
                 "Prepared statement (id={}) was invalid when executed. This can happen due to a "
                     + "conflicting schema change. Will re-prepare and retry.",
                 ((PreparedQueryNotFoundException) ex).id);
-            prepareAndRetry(query.bounded(), executeParameters, queryStartNanos, future);
+            prepareAndRetry(query.source(), executeParameters, queryStartNanos, future);
           } else {
             future.completeExceptionally(ex);
           }
@@ -146,15 +146,15 @@ class PersistenceBackedDataStore implements DataStore {
   }
 
   private void prepareAndRetry(
-      BoundQuery.Bounded<?> bounded,
+      BoundQuery.Source<?> bound,
       Parameters executeParameters,
       long queryStartNanos,
       CompletableFuture<ResultSet> future) {
-    prepare(bounded.query())
+    prepare(bound.query())
         .thenAccept(
             prepared ->
                 executeWithRetry(
-                    prepared.bindValues(bounded.values()),
+                    prepared.bindValues(bound.values()),
                     executeParameters,
                     queryStartNanos,
                     future))
