@@ -15,6 +15,7 @@ import io.stargate.db.query.TypedValue.Codec;
 import io.stargate.db.schema.Schema;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -167,7 +168,9 @@ class PersistenceBackedDataStore implements DataStore {
 
   @Override
   public CompletableFuture<ResultSet> batch(
-      List<BoundQuery> queries, BatchType batchType, UnaryOperator<Parameters> parametersModifier) {
+      Collection<BoundQuery> queries,
+      BatchType batchType,
+      UnaryOperator<Parameters> parametersModifier) {
     long queryStartNanos = System.nanoTime();
     Parameters executeParameters = parametersModifier.apply(parameters());
     validateExecuteParameters(executeParameters);

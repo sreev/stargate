@@ -1,6 +1,8 @@
 package io.stargate.db.query;
 
-import io.stargate.db.query.builder.Bindable;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import org.apache.cassandra.stargate.exceptions.InvalidRequestException;
 import org.apache.cassandra.stargate.utils.MD5Digest;
@@ -11,7 +13,12 @@ import org.apache.cassandra.stargate.utils.MD5Digest;
  * <p>Implementations of this class make no strong guarantees on the validity of the query they
  * represent; executing them may raise an {@link InvalidRequestException}.
  */
-public interface Query<B extends BoundQuery> extends Bindable<B> {
+public interface Query<B extends BoundQuery> {
+
+  TypedValue.Codec valueCodec();
+
+  /** The (potentially empty) list of bind markers that remains to be bound in this query. */
+  List<BindMarker> bindMarkers();
 
   /** If this is a prepared query, it's prepared ID. */
   Optional<MD5Digest> preparedId();
@@ -27,6 +34,24 @@ public interface Query<B extends BoundQuery> extends Bindable<B> {
    * not part of {@link #bindMarkers()}, to optimize prepared statement caching for instance).
    */
   String queryStringForPreparation();
+
+  B bindValues(List<TypedValue> values);
+
+  default B bind(Object... values) {
+    return bind(Arrays.asList(values));
+  }
+
+  default B bind(List<Object> values) {
+    return bindValues(TypedValue.forJavaValues(valueCodec(), bindMarkers(), values));
+  }
+
+  default B bindBuffers(ByteBuffer... values) {
+    return bindBuffers(Arrays.asList(values));
+  }
+
+  default B bindBuffers(List<ByteBuffer> values) {
+    return bindValues(TypedValue.forBytesValues(valueCodec(), bindMarkers(), values));
+  }
 
   /**
    * A valid CQL query string representation of this query (with bind markers for the values of

@@ -291,7 +291,7 @@ public class DocumentDBTest {
 
     @Override
     public CompletableFuture<ResultSet> batch(
-        List<BoundQuery> queries,
+        Collection<BoundQuery> queries,
         BatchType batchType,
         UnaryOperator<Parameters> parametersModifier) {
       this.recentQueries.addAll(queries);

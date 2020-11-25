@@ -21,7 +21,6 @@ import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
-import com.datastax.oss.driver.shaded.guava.common.base.Strings;
 import com.datastax.oss.driver.shaded.guava.common.collect.Sets;
 import com.github.misberner.apcommons.util.AFModifier;
 import com.github.misberner.duzzt.annotations.DSLAction;
@@ -76,7 +75,7 @@ import org.javatuples.Pair;
       @SubExpr(
           name = "table",
           definedAs =
-              "(create table ifNotExists? column+ withComment? (<withVL>|<withEL>)? withDefaultTTL?) | (alter table (((addColumn+)? | (dropColumn+)? | (renameColumn+)?) | (withComment? withDefaultTTL? (<withVL>|<withEL>|<withoutVL>|<withoutEL>)?))) | (drop table ifExists?) | (truncate table) | (<renameGraphLabel>)"),
+              "(create table ifNotExists? column+ withComment? withDefaultTTL?) | (alter table (((addColumn+)? | (dropColumn+)? | (renameColumn+)?) | (withComment? withDefaultTTL?))) | (drop table ifExists?) | (truncate table)"),
       @SubExpr(name = "type", definedAs = "(create type ifNotExists?)|(drop type ifExists?)"),
       @SubExpr(name = "insert", definedAs = "insertInto value+ ifNotExists? ttl? timestamp?"),
       @SubExpr(name = "update", definedAs = "update ttl? timestamp? value+ where+ ifs* ifExists?"),
@@ -90,19 +89,8 @@ import org.javatuples.Pair;
           definedAs =
               "(drop ((materializedView|index) ifExists?)) | (create ((materializedView ifNotExists? asSelect (column+) from)"
                   + " | (custom? index ifNotExists? on column (indexKeys|indexValues|indexEntries|indexFull|indexingType)?)))"),
-      @SubExpr(name = "withVL", definedAs = "withVertexLabel"),
-      @SubExpr(
-          name = "withEL",
-          definedAs = "withEdgeLabel fromVertexLabel fromColumn+ toVertexLabel toColumn+"),
-      @SubExpr(name = "withoutVL", definedAs = "withoutVertexLabel"),
-      @SubExpr(name = "withoutEL", definedAs = "withoutEdgeLabel"),
-      @SubExpr(
-          name = "renameGraphLabel",
-          definedAs = "alter table rename (vertexLabel|edgeLabel) fromLabel? toLabel"),
     })
 public class QueryBuilderImpl {
-  private static final String ANONYMOUS_GRAPH_LABEL = "ANONYMOUS_LABEL";
-
   private final Schema schema;
   private final Codec valueCodec;
   private final @Nullable AsyncQueryExecutor executor;
@@ -163,17 +151,6 @@ public class QueryBuilderImpl {
   private @Nullable Boolean durableWrites;
   private String comment;
   private Integer defaultTTL;
-  private String vertexLabel;
-  private String edgeLabel;
-  private String fromVertexLabel;
-  private String toVertexLabel;
-  private boolean isWithoutGraphLabel = false;
-  private final List<Column> fromColumns = new ArrayList<>();
-  private final List<Column> toColumns = new ArrayList<>();
-  private boolean isRenameGraphLabel = false;
-  private boolean isRenameVertexLabel = false;
-  private String fromLabel;
-  private String toLabel;
   private String indexCreateColumn;
   private String customIndexClass;
   private UserDefinedType type;
@@ -222,11 +199,6 @@ public class QueryBuilderImpl {
   }
 
   @DSLAction
-  public void withVertexLabel() {
-    withVertexLabel(ANONYMOUS_GRAPH_LABEL);
-  }
-
-  @DSLAction
   public void table(String keyspace, String table) {
     this.keyspaceName = keyspace;
     table(table);
@@ -237,121 +209,6 @@ public class QueryBuilderImpl {
     checkArgument(keyspaceName != null, "Keyspace must be specified");
     this.tableName = table;
     this.isTable = true;
-  }
-
-  @DSLAction
-  public void withEdgeLabel() {
-    withEdgeLabel(ANONYMOUS_GRAPH_LABEL);
-  }
-
-  @DSLAction
-  public void withVertexLabel(String vertexLabel) {
-    checkArgument(vertexLabel != null, "'withVertexLabel(label)' must be non-null");
-    this.vertexLabel = vertexLabel;
-  }
-
-  @DSLAction
-  public void withEdgeLabel(String edgeLabel) {
-    checkArgument(edgeLabel != null, "'withEdgeLabel(label)' must be non-null");
-    this.edgeLabel = edgeLabel;
-  }
-
-  @DSLAction
-  public void withoutVertexLabel() {
-    withoutVertexLabel(ANONYMOUS_GRAPH_LABEL);
-  }
-
-  @DSLAction
-  public void withoutEdgeLabel() {
-    withoutEdgeLabel(ANONYMOUS_GRAPH_LABEL);
-  }
-
-  @DSLAction
-  public void withoutVertexLabel(String vertexLabel) {
-    checkArgument(vertexLabel != null, "'withoutVertexLabel(label)' must be non-null");
-    this.vertexLabel = vertexLabel;
-    isWithoutGraphLabel = true;
-  }
-
-  @DSLAction
-  public void withoutEdgeLabel(String edgeLabel) {
-    checkArgument(edgeLabel != null, "'withoutEdgeLabel(label)' must be non-null");
-    this.edgeLabel = edgeLabel;
-    isWithoutGraphLabel = true;
-  }
-
-  @DSLAction
-  public void fromVertexLabel(String fromVertexLabel) {
-    checkArgument(fromVertexLabel != null, "'fromVertexLabel(label)' must be non-null");
-    this.fromVertexLabel = fromVertexLabel;
-  }
-
-  @DSLAction
-  public void toVertexLabel(String toVertexLabel) {
-    checkArgument(toVertexLabel != null, "'toVertexLabel(label)' must be non-null");
-    this.toVertexLabel = toVertexLabel;
-  }
-
-  @DSLAction
-  public void rename() {
-    this.isRenameGraphLabel = true;
-  }
-
-  @DSLAction
-  public void vertexLabel() {
-    this.isRenameVertexLabel = true;
-  }
-
-  @DSLAction
-  public void edgeLabel() {
-    this.isRenameVertexLabel = false;
-  }
-
-  @DSLAction
-  public void fromLabel(String fromLabel) {
-    this.fromLabel = fromLabel;
-  }
-
-  @DSLAction
-  public void toLabel(String toLabel) {
-    this.toLabel = toLabel;
-  }
-
-  @DSLAction
-  public void fromColumn(String column) {
-    fromColumn(Column.create(column, Column.Kind.Clustering));
-  }
-
-  @DSLAction
-  public void fromColumn(String column, Column.Kind kind) {
-    fromColumn(Column.create(column, kind));
-  }
-
-  @DSLAction
-  public void fromColumn(Column column) {
-    fromColumns.add(column);
-  }
-
-  public void fromColumn(List<Column> columns) {
-    for (Column column : columns) {
-      fromColumn(column);
-    }
-  }
-
-  @DSLAction
-  public void toColumn(String column, Column.Kind kind) {
-    toColumn(Column.create(column, kind));
-  }
-
-  @DSLAction
-  public void toColumn(Column column) {
-    toColumns.add(column);
-  }
-
-  public void toColumn(List<Column> columns) {
-    for (Column column : columns) {
-      toColumn(column);
-    }
   }
 
   @DSLAction
@@ -1056,70 +913,6 @@ public class QueryBuilderImpl {
     }
   }
 
-  private void addFromOrToColumns(List<Column> columns, StringBuilder query) {
-    checkArgument(
-        columns.stream().anyMatch(c -> c.kind() == Column.Kind.PartitionKey),
-        "At least one partition key must be specified for FROM: '%s' / TO: '%s' vertex labels",
-        fromVertexLabel,
-        toVertexLabel);
-    query.append("((");
-    query.append(
-        columns.stream()
-            .filter(c -> c.kind() == Column.Kind.PartitionKey)
-            .map(SchemaEntity::cqlName)
-            .collect(Collectors.joining(", ")));
-    query.append(")");
-    if (columns.stream().anyMatch(c -> c.kind() == Column.Kind.Clustering)) {
-      query.append(", ");
-    }
-    query.append(
-        columns.stream()
-            .filter(c -> c.kind() == Column.Kind.Clustering)
-            .map(SchemaEntity::cqlName)
-            .collect(Collectors.joining(", ")));
-    query.append(")");
-  }
-
-  private void addGraphLabel(WithAdder with) {
-    if (!isWithoutGraphLabel) {
-      if (null != vertexLabel) {
-        addVertexLabel(with.add());
-      } else if (null != edgeLabel) {
-        StringBuilder query = with.add();
-        addEdgeLabel(query);
-        query.append(" FROM \"").append(fromVertexLabel).append("\"");
-        addFromOrToColumns(fromColumns, query);
-        query.append(" TO \"").append(toVertexLabel).append("\"");
-        addFromOrToColumns(toColumns, query);
-      }
-    }
-  }
-
-  private void addWithoutGraphLabel(StringBuilder query) {
-    if (isWithoutGraphLabel) {
-      query.append(" WITHOUT");
-      if (null != vertexLabel) {
-        addVertexLabel(query);
-      } else if (null != edgeLabel) {
-        addEdgeLabel(query);
-      }
-    }
-  }
-
-  private void addVertexLabel(StringBuilder query) {
-    query.append(" VERTEX LABEL");
-    if (!ANONYMOUS_GRAPH_LABEL.equals(vertexLabel)) {
-      query.append(" \"").append(vertexLabel).append("\"");
-    }
-  }
-
-  private void addEdgeLabel(StringBuilder query) {
-    query.append(" EDGE LABEL");
-    if (!ANONYMOUS_GRAPH_LABEL.equals(edgeLabel)) {
-      query.append(" \"").append(edgeLabel).append("\"");
-    }
-  }
-
   private BuiltQuery<?> createTable() {
     StringBuilder query = new StringBuilder();
     Keyspace ks = schemaKeyspace();
@@ -1149,7 +942,6 @@ public class QueryBuilderImpl {
     addClusteringOrder(with, createColumns);
     addComment(with);
     addDefaultTTL(with);
-    addGraphLabel(with);
 
     return new BuiltOther(valueCodec, executor, query.toString());
   }
@@ -1162,62 +954,41 @@ public class QueryBuilderImpl {
     StringBuilder query = new StringBuilder();
     Table table = schemaTable();
     addName(query.append("ALTER TABLE "), table);
-    if (isRenameGraphLabel) {
-      return renameGraphLabel(query);
-    } else {
-      if (!addColumns.isEmpty()) {
-        query.append(" ADD (");
-        query.append(
-            addColumns.stream()
-                .map(
-                    c ->
-                        c.cqlName()
-                            + " "
-                            + c.type().cqlDefinition()
-                            + (c.kind() == Column.Kind.Static ? " STATIC" : ""))
-                .collect(Collectors.joining(", ")));
-        query.append(")");
-      }
-      if (!dropColumns.isEmpty()) {
-        query.append(" DROP (");
-        query.append(
-            dropColumns.stream().map(QueryBuilderImpl::cqlName).collect(Collectors.joining(", ")));
-        query.append(")");
-      }
-      if (!columnRenames.isEmpty()) {
-        query.append(" RENAME ");
-        boolean isFirst = true;
-        for (Pair<String, String> rename : columnRenames) {
-          if (isFirst) isFirst = false;
-          else query.append(" AND ");
-          query
-              .append(cqlName(rename.getValue0()))
-              .append(" TO ")
-              .append(cqlName(rename.getValue1()));
-        }
-      }
-      WithAdder with = new WithAdder(query);
-      addComment(with);
-      addDefaultTTL(with);
-      addGraphLabel(with);
 
-      addWithoutGraphLabel(query);
+    if (!addColumns.isEmpty()) {
+      query.append(" ADD (");
+      query.append(
+          addColumns.stream()
+              .map(
+                  c ->
+                      c.cqlName()
+                          + " "
+                          + c.type().cqlDefinition()
+                          + (c.kind() == Column.Kind.Static ? " STATIC" : ""))
+              .collect(Collectors.joining(", ")));
+      query.append(")");
     }
-    return new BuiltOther(valueCodec, executor, query.toString());
-  }
-
-  private BuiltQuery<?> renameGraphLabel(StringBuilder query) {
-    query.append(" RENAME ");
-    if (isRenameVertexLabel) {
-      query.append("VERTEX LABEL");
-    } else {
-      query.append("EDGE LABEL");
+    if (!dropColumns.isEmpty()) {
+      query.append(" DROP (");
+      query.append(
+          dropColumns.stream().map(QueryBuilderImpl::cqlName).collect(Collectors.joining(", ")));
+      query.append(")");
     }
-
-    if (!Strings.isNullOrEmpty(fromLabel)) {
-      query.append(" \"").append(fromLabel).append("\"");
+    if (!columnRenames.isEmpty()) {
+      query.append(" RENAME ");
+      boolean isFirst = true;
+      for (Pair<String, String> rename : columnRenames) {
+        if (isFirst) isFirst = false;
+        else query.append(" AND ");
+        query
+            .append(cqlName(rename.getValue0()))
+            .append(" TO ")
+            .append(cqlName(rename.getValue1()));
+      }
     }
-    query.append(" TO \"").append(toLabel).append("\"");
+    WithAdder with = new WithAdder(query);
+    addComment(with);
+    addDefaultTTL(with);
     return new BuiltOther(valueCodec, executor, query.toString());
   }
 

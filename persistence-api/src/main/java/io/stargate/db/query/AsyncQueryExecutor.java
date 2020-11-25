@@ -4,7 +4,7 @@ import io.stargate.db.BatchType;
 import io.stargate.db.Parameters;
 import io.stargate.db.Persistence;
 import io.stargate.db.datastore.ResultSet;
-import java.util.List;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.UnaryOperator;
 import org.apache.cassandra.stargate.db.ConsistencyLevel;
@@ -56,32 +56,32 @@ public interface AsyncQueryExecutor {
   /**
    * Executes the provided queries as a batch against this executor.
    *
-   * <p>This is a shortcut for {@link #batch(List, UnaryOperator)} but where the execution {@link
-   * Parameters} are the default ones of the executor.
+   * <p>This is a shortcut for {@link #batch(Collection, UnaryOperator)} but where the execution
+   * {@link Parameters} are the default ones of the executor.
    */
-  default CompletableFuture<ResultSet> batch(List<BoundQuery> queries) {
+  default CompletableFuture<ResultSet> batch(Collection<BoundQuery> queries) {
     return batch(queries, p -> p);
   }
 
   /**
    * Executes the provided queries as a batch against this executor.
    *
-   * <p>This is a shortcut for {@link #batch(List, UnaryOperator)} where executor default parameters
-   * are only modified to use the provided consistency level.
+   * <p>This is a shortcut for {@link #batch(Collection, UnaryOperator)} where executor default
+   * parameters are only modified to use the provided consistency level.
    */
   default CompletableFuture<ResultSet> batch(
-      List<BoundQuery> queries, ConsistencyLevel consistencyLevel) {
+      Collection<BoundQuery> queries, ConsistencyLevel consistencyLevel) {
     return batch(queries, p -> p.withConsistencyLevel(consistencyLevel));
   }
 
   /**
    * Executes the provided queries as a batch against this executor.
    *
-   * <p>This is a shortcut for {@link #batch(List, BatchType, UnaryOperator)} where batch type
+   * <p>This is a shortcut for {@link #batch(Collection, BatchType, UnaryOperator)} where batch type
    * defaults to "logged".
    */
   default CompletableFuture<ResultSet> batch(
-      List<BoundQuery> queries, UnaryOperator<Parameters> parametersModifier) {
+      Collection<BoundQuery> queries, UnaryOperator<Parameters> parametersModifier) {
     return batch(queries, BatchType.LOGGED, parametersModifier);
   }
 
@@ -98,5 +98,7 @@ public interface AsyncQueryExecutor {
    *     description applies here.
    */
   CompletableFuture<ResultSet> batch(
-      List<BoundQuery> queries, BatchType batchType, UnaryOperator<Parameters> parametersModifier);
+      Collection<BoundQuery> queries,
+      BatchType batchType,
+      UnaryOperator<Parameters> parametersModifier);
 }

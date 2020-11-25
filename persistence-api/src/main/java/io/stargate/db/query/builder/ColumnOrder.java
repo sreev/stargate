@@ -21,7 +21,7 @@ import org.immutables.value.Value;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
 @Value.Immutable(prehash = true)
-@org.immutables.value.Value.Style(visibility = ImplementationVisibility.PACKAGE)
+@Value.Style(visibility = ImplementationVisibility.PACKAGE)
 public abstract class ColumnOrder {
 
   public abstract String column();

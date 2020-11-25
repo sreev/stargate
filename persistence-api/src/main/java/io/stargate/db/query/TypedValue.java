@@ -47,6 +47,7 @@ public class TypedValue {
     return type;
   }
 
+  @SuppressWarnings("PMD.CompareObjectsWithEquals")
   public boolean isUnset() {
     return javaValue == UNSET;
   }
@@ -96,6 +97,7 @@ public class TypedValue {
     return forJavaValue(codec, marker.receiver(), marker.type(), value);
   }
 
+  @SuppressWarnings("PMD.CompareObjectsWithEquals")
   public static TypedValue forJavaValue(
       Codec codec, String name, ColumnType type, @Nullable Object value) {
     if (value != null && value != UNSET) {
